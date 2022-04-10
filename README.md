@@ -1,0 +1,2 @@
+# paraSOL
+WeatherSync bypass
