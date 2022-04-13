@@ -13,12 +13,14 @@ namespace HttpListenerExample
     class HttpServer
     {
         public static HttpListener listener;
-        public static string url = "http://127.0.0.1:8000/";
+        public static bool SkipWeathersyncReroute = false;
+        public static string url = "http://127.11.11.11:80/";
         public static int pageViews = 0;
         public static int requestCount = 0;
         public static string hostFileLocation = "C:\\Windows\\System32\\drivers\\etc\\hosts";
         public static string weathersyncOriginalDestination = "api.openweathermap.org";
-        public static string weathersyncReroutedDestination = "localhost:8000";
+        public static string weathersyncReroutedDestination = "127.11.11.11:80";
+        public static string weathersyncReroutedDestinationHost = "127.11.11.11";
         public static string pageData = 
             "<!DOCTYPE>" +
             "<html>" +
@@ -53,17 +55,20 @@ namespace HttpListenerExample
                 HttpListenerResponse resp = ctx.Response;
 
                 // Print out some info about the request
-                Console.WriteLine("Request #: {0}", ++requestCount);
-                Console.WriteLine(req.Url.ToString());
-                Console.WriteLine(req.HttpMethod);
-                Console.WriteLine(req.UserHostName);
-                Console.WriteLine(req.UserAgent);
-                Console.WriteLine();
+                ++requestCount;
+                PrintSeparator();
+                Print("Request #: " + requestCount);
+                Print(req.Url.ToString());
+                Print(req.HttpMethod);
+                Print(req.UserHostName);
+                Print(req.UserAgent);
+                PrintSeparator();
 
                 // If `shutdown` url requested w/ POST, then shutdown the server after serving the page
                 if ((req.HttpMethod == "POST") && (req.Url.AbsolutePath == "/shutdown"))
                 {
-                    Console.WriteLine("Shutdown requested");
+                    PrintSeparator();
+                    Print("Shutdown requested");
                     runServer = false;
                 }
 
@@ -86,12 +91,21 @@ namespace HttpListenerExample
 
         public static void RerouteWeathersync()
         {
+            if(SkipWeathersyncReroute)
+            {
+                Print("Skipping weathersync reroute, please check debug vars");
+                return;
+            }
             string text = System.IO.File.ReadAllText(hostFileLocation);
-            Console.WriteLine(text);
+            Print("Here is the host file:");
+            PrintSeparator();
+            Print(text);
+            PrintSeparator();
 
-            string hostRewriteChunk = "\n" + weathersyncReroutedDestination + " " + weathersyncOriginalDestination;
-            Console.WriteLine("Here is the chunk to be added:");
-            Console.WriteLine(hostRewriteChunk);
+            string hostRewriteChunk = "\n" + weathersyncReroutedDestinationHost + " " + weathersyncOriginalDestination;
+            Print("Here is the chunk to be added:");
+            Print(hostRewriteChunk);
+            PrintSeparator();
 
 
             File.WriteAllText(hostFileLocation, text + hostRewriteChunk);
@@ -106,7 +120,7 @@ namespace HttpListenerExample
             listener = new HttpListener();
             listener.Prefixes.Add(url);
             listener.Start();
-            Console.WriteLine("Listening for connections on {0}", url);
+            Print("Listening for connections on " + url);
 
             // Handle requests
             Task listenTask = HandleIncomingConnections();
@@ -114,6 +128,17 @@ namespace HttpListenerExample
 
             // Close the listener
             listener.Close();
+        }
+
+        public static void Print(string message)
+        {
+            Console.WriteLine(message);
+        }
+
+        public static void PrintSeparator()
+        {
+            string separator = "################################";
+            Print(separator);
         }
     }
 }
