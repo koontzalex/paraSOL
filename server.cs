@@ -14,13 +14,15 @@ namespace HttpListenerExample
     {
         public static HttpListener listener;
         public static bool SkipWeathersyncReroute = false;
+        public static bool SkipWeathersyncUnroute = false;
         public static string url = "http://127.11.11.11:80/";
         public static int pageViews = 0;
         public static int requestCount = 0;
         public static string hostFileLocation = "C:\\Windows\\System32\\drivers\\etc\\hosts";
-        public static string weathersyncOriginalDestination = "api.openweathermap.org";
-        public static string weathersyncReroutedDestination = "127.11.11.11:80";
-        public static string weathersyncReroutedDestinationHost = "127.11.11.11";
+        public static string HostfileSource = "api.openweathermap.org";
+        public static string HostfileTag = "# Kura5 Weathersync Reroute";
+        public static string Host = "127.11.11.11:80";
+        public static string HostfileDestination = "127.11.11.11";
         public static string pageData = 
             "<!DOCTYPE>" +
             "<html>" +
@@ -102,13 +104,48 @@ namespace HttpListenerExample
             Print(text);
             PrintSeparator();
 
-            string hostRewriteChunk = "\n" + weathersyncReroutedDestinationHost + " " + weathersyncOriginalDestination;
+            string hostRewriteChunk = "\n" + HostfileDestination + " " + HostfileSource + " " + HostfileTag;
             Print("Here is the chunk to be added:");
             Print(hostRewriteChunk);
             PrintSeparator();
 
 
             File.WriteAllText(hostFileLocation, text + hostRewriteChunk);
+        }
+
+        public static void UnrouteWeathersync()
+        {
+            if(SkipWeathersyncUnroute)
+            {
+                Print("Skipping weathersync unroute, please check debug vars");
+            }
+
+            string text = System.IO.File.ReadAllText(hostFileLocation);
+            bool hasReroute = text.Contains(HostfileTag);
+            if(!hasReroute)
+            {
+                Print("No reroute detected, skipping...");
+                return;
+            }
+            Print("Reroute detected in hostfile, removing...");
+
+            string tempFile = Path.GetTempFileName();
+
+            using(var sr = new StreamReader(hostFileLocation))
+            using(var sw = new StreamWriter(tempFile))
+            {
+                string line;
+
+                while((line = sr.ReadLine()) != null)
+                {
+                    if(!line.Contains(HostfileTag))
+                        sw.WriteLine(line);
+                }
+            }
+
+            File.Delete(hostFileLocation);
+            File.Move(tempFile, hostFileLocation);
+
         }
 
 
@@ -128,6 +165,8 @@ namespace HttpListenerExample
 
             // Close the listener
             listener.Close();
+
+            UnrouteWeathersync();
         }
 
         public static void Print(string message)
