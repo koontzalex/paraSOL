@@ -3,7 +3,8 @@
 /tmp/*
 !/log/.keep
 !/tmp/.keep
-
 # Ignore all files in the private folder
 /private/*
 
+# Ignore the workspace file for vs code
+paraSOL.code-workspace
