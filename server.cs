@@ -13,15 +13,12 @@ namespace HttpListenerExample
     class HttpServer
     {
         public static HttpListener listener;
-        public static bool SkipWeathersyncReroute = false;
-        public static bool SkipWeathersyncUnroute = false;
         public static string url = "http://127.11.11.11:80/";
         public static int pageViews = 0;
         public static int requestCount = 0;
         public static string hostFileLocation = "C:\\Windows\\System32\\drivers\\etc\\hosts";
-        public static string HostfileSource = "api.openweathermap.org";
+        public static string HostfileSource = "geoplugin.net";
         public static string HostfileTag = "# Kura5 Weathersync Reroute";
-        public static string Host = "127.11.11.11:80";
         public static string HostfileDestination = "127.11.11.11";
         public static string pageData = 
             "<!DOCTYPE>" +
@@ -37,14 +34,13 @@ namespace HttpListenerExample
             "  </body>" +
             "</html>";
 
+        public static string RerouteHostFile = "RerouteHostFile";
+        public static string CleanupHostFile = "CleanupHostFile";
+        public static string SpinupServer = "SpinupServer";
 
         public static async Task HandleIncomingConnections()
         {
             bool runServer = true;
-
-
-
-
 
             // While a user hasn't visited the `shutdown` url, keep on handling requests
             while (runServer)
@@ -73,7 +69,11 @@ namespace HttpListenerExample
                     Print("Shutdown requested");
                     runServer = false;
                 }
-
+                else if ((req.HttpMethod == "GET") && (req.RawUrl.Contains("/json.gp")))
+                {
+                    PrintSeparator();
+                    Print("We made it");
+                }
                 // Make sure we don't increment the page views counter if `favicon.ico` is requested
                 if (req.Url.AbsolutePath != "/favicon.ico")
                     pageViews += 1;
@@ -93,32 +93,29 @@ namespace HttpListenerExample
 
         public static void RerouteWeathersync()
         {
-            if(SkipWeathersyncReroute)
-            {
-                Print("Skipping weathersync reroute, please check debug vars");
-                return;
-            }
-            string text = System.IO.File.ReadAllText(hostFileLocation);
+            // string text = System.IO.File.ReadAllText(hostFileLocation);
+            string[] lines = File.ReadAllLines(hostFileLocation);
             Print("Here is the host file:");
             PrintSeparator();
-            Print(text);
+            Print(string.Join("\n", lines));
             PrintSeparator();
 
-            string hostRewriteChunk = "\n" + HostfileDestination + " " + HostfileSource + " " + HostfileTag;
+            string hostRewriteChunk = HostfileDestination + " " + HostfileSource + " " + HostfileTag;
+            string hostRewriteChunk2 = HostfileDestination + " www." + HostfileSource + " " + HostfileTag;
             Print("Here is the chunk to be added:");
             Print(hostRewriteChunk);
             PrintSeparator();
 
-
-            File.WriteAllText(hostFileLocation, text + hostRewriteChunk);
+            string[] newLines = new string[lines.Length + 2];
+            lines.CopyTo(newLines, 0);
+            newLines[newLines.Length -1] = hostRewriteChunk;
+            newLines[newLines.Length -2] = hostRewriteChunk2;
+            File.WriteAllText(hostFileLocation, string.Join("\n", newLines));
+            Print("Hostfile updated!");
         }
 
         public static void UnrouteWeathersync()
         {
-            if(SkipWeathersyncUnroute)
-            {
-                Print("Skipping weathersync unroute, please check debug vars");
-            }
 
             string text = System.IO.File.ReadAllText(hostFileLocation);
             bool hasReroute = text.Contains(HostfileTag);
@@ -135,38 +132,56 @@ namespace HttpListenerExample
             using(var sw = new StreamWriter(tempFile))
             {
                 string line;
-
                 while((line = sr.ReadLine()) != null)
                 {
-                    if(!line.Contains(HostfileTag))
+                    if(!line.Contains(HostfileTag)) {
                         sw.WriteLine(line);
+                    }
                 }
             }
 
+            Print("Deleting old host file...");
             File.Delete(hostFileLocation);
+            Print("Creating new host file replacement...");
             File.Move(tempFile, hostFileLocation);
+            Print("Done!");
 
         }
 
 
         public static void Main(string[] args)
         {
+            // Console.WriteLine(args[0]);
+            Print("Hello World!");
+            if( should(RerouteHostFile, args)) {
+                Print("RerouteWeathersync!");
+                RerouteWeathersync();
+            }
 
-            RerouteWeathersync();
-            // Create a Http server and start listening for incoming connections
-            listener = new HttpListener();
-            listener.Prefixes.Add(url);
-            listener.Start();
-            Print("Listening for connections on " + url);
+            if( should(SpinupServer, args)) {
+                Print("SpinupServer!");
+                // Create a Http server and start listening for incoming connections
+                listener = new HttpListener();
+                listener.Prefixes.Add(url);
+                listener.Start();
+                Print("Listening for connections on " + url);
 
-            // Handle requests
-            Task listenTask = HandleIncomingConnections();
-            listenTask.GetAwaiter().GetResult();
+                // Handle requests
+                Task listenTask = HandleIncomingConnections();
+                listenTask.GetAwaiter().GetResult();
 
-            // Close the listener
-            listener.Close();
+                // Close the listener
+                listener.Close();
+            }
 
-            UnrouteWeathersync();
+            if( should(CleanupHostFile, args)) {
+                Print("UnrouteWeathersync!");
+                UnrouteWeathersync();
+            }
+        }
+
+        public static bool should(string search, string[] args) {
+            return (args.Length == 0) || (Array.IndexOf(args, search) != -1);
         }
 
         public static void Print(string message)
